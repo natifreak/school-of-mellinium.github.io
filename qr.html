@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code Scanner</title>
+<style>
+    #video {
+        width: 100%;
+        height: auto;
+        margin-bottom: 10px;
+    }
+    #result {
+        margin-top: 10px;
+    }
+    button {
+        display: block;
+        margin: 10px auto;
+    }
+</style>
+</head>
+<body>
+    <video id="video" autoplay></video>
+    <div id="result"></div>
+    <p id="qrResult"></p>
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    <button onclick="toggleCamera()">Toggle Camera</button>
+    <button onclick="browseFile()">Browse File</button>
+
+    <script src="https://rawgit.com/LazarSoft/jsqrcode/master/src/qr_packed.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const resultDiv = document.getElementById('result');
+        const qrResult = document.getElementById('qrResult');
+        const fileInput = document.getElementById('fileInput');
+        let isCameraActive = false;
+        let scanningInterval;
+
+        function toggleCamera() {
+            if (!isCameraActive) {
+                startCamera();
+                startScanning();
+            } else {
+                stopCamera();
+                stopScanning();
+            }
+            isCameraActive = !isCameraActive;
+        }
+
+        function startCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function (stream) {
+                        video.srcObject = stream;
+                        video.play();
+                    })
+                    .catch(function (err) {
+                        console.error('Access to camera was denied', err);
+                    });
+            }
+        }
+
+        function stopCamera() {
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(function(track) {
+                track.stop();
+            });
+            video.srcObject = null;
+        }
+
+        function startScanning() {
+            scanningInterval = setInterval(scanCode, 1000);
+        }
+
+        function stopScanning() {
+            clearInterval(scanningInterval);
+        }
+
+        function scanCode() {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+                qrResult.textContent = 'QR Code detected: ' + code.data;
+                stopCamera();
+                stopScanning();
+            } else {
+                qrResult.textContent = 'No QR Code detected.';
+            }
+        }
+
+        function browseFile() {
+            fileInput.click();
+        }
+
+        fileInput.addEventListener('change', function () {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const image = new Image();
+                image.src = e.target.result;
+                image.onload = function () {
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code) {
+                        qrResult.textContent = 'QR Code detected: ' + code.data;
+                    } else {
+                        qrResult.textContent = 'No QR Code detected.';
+                    }
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+
+        window.addEventListener('beforeunload', function () {
+            stopCamera();
+            stopScanning();
+        });
+    </script>
+</body>
+</html>
